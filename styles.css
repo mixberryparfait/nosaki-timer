@@ -1,0 +1,260 @@
+/* 野崎タイマー - 超小型ユーティリティガジェット */
+
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --nozaki-bg: rgba(8, 14, 22, 0.92);
+  --nozaki-edge: rgba(0, 255, 170, 0.55);
+  --nozaki-text: rgba(0, 255, 170, 0.9);
+  --nozaki-dim: rgba(0, 255, 170, 0.45);
+  --nozaki-accent: rgba(255, 120, 70, 0.95);
+}
+
+#nozaki-timer-panel {
+  position: fixed;
+  z-index: 999999;
+
+  background:
+    linear-gradient(135deg, rgba(0, 255, 170, 0.08) 0%, transparent 45%),
+    var(--nozaki-bg);
+  border: 1px solid var(--nozaki-edge);
+  border-radius: 6px;
+  padding: 6px 8px;
+
+  font-family: 'Chakra Petch', 'Share Tech Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--nozaki-text);
+
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(0, 255, 170, 0.08);
+
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  overflow: hidden;
+}
+
+#nozaki-timer-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    repeating-linear-gradient(
+      135deg,
+      rgba(0, 255, 170, 0.07) 0px,
+      rgba(0, 255, 170, 0.07) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+#nozaki-timer-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 170, 0.15), transparent);
+  animation: scan 6s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scan {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+#nozaki-timer-panel:hover {
+  border-color: rgba(0, 255, 170, 0.9);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(0, 255, 170, 0.12);
+  transform: translateY(-1px);
+}
+
+/* ドラッグ中のスタイル */
+#nozaki-timer-panel.nozaki-timer-dragging {
+  opacity: 0.8;
+  transform: scale(1.01);
+  cursor: grabbing;
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(0, 255, 170, 0.2);
+}
+
+/* 非表示状態 */
+#nozaki-timer-panel.nozaki-timer-hidden {
+  display: none;
+}
+
+/* コンテンツ */
+.nozaki-timer-body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+
+.nozaki-timer-content {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+
+.nozaki-timer-content::before {
+  content: 'T';
+  color: var(--nozaki-dim);
+  font-size: 10px;
+  margin-right: 2px;
+  animation: blink 2s infinite;
+}
+
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.3; }
+}
+
+#nozaki-timer-value {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--nozaki-text);
+  text-shadow:
+    0 0 6px rgba(0, 255, 170, 0.6);
+  min-width: 52px;
+  text-align: right;
+  letter-spacing: -1px;
+  line-height: 1;
+  filter: drop-shadow(0 0 3px rgba(0, 255, 170, 0.4));
+}
+
+#nozaki-timer-panel[data-running="false"] #nozaki-timer-value {
+  color: var(--nozaki-dim);
+  text-shadow: none;
+  filter: none;
+}
+
+/* 単位表示 */
+.nozaki-timer-content::after {
+  content: '';
+  display: block;
+}
+
+/* 警告状態（残り時間が少ないとき） */
+#nozaki-timer-panel[data-warning="true"] {
+  animation: warning-pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-color: var(--nozaki-accent);
+  outline-color: rgba(255, 100, 50, 0.35);
+}
+
+#nozaki-timer-panel[data-warning="true"] #nozaki-timer-value {
+  color: var(--nozaki-accent);
+  text-shadow:
+    0 0 8px rgba(255, 100, 50, 0.7);
+  animation: warning-flicker 0.4s infinite;
+}
+
+@keyframes warning-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 16px rgba(255, 100, 50, 0.25),
+      0 4px 12px rgba(0, 0, 0, 0.8);
+  }
+  50% {
+    box-shadow:
+      0 0 28px rgba(255, 100, 50, 0.45),
+      0 4px 12px rgba(0, 0, 0, 0.8);
+  }
+}
+
+@keyframes warning-flicker {
+  0%, 100% { opacity: 1; }
+  45%, 55% { opacity: 0.85; }
+}
+
+/* コントロール */
+.nozaki-timer-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* リセットボタン */
+.nozaki-timer-reset {
+  border: 1px solid var(--nozaki-edge);
+  background: rgba(0, 20, 40, 0.8);
+  color: var(--nozaki-text);
+  padding: 2px 6px;
+  font-family: 'Chakra Petch', 'Share Tech Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 0 6px rgba(0, 255, 170, 0.2);
+  transition: all 0.15s ease;
+}
+
+.nozaki-timer-reset:hover {
+  border-color: rgba(0, 255, 170, 0.9);
+  background: rgba(0, 30, 50, 0.95);
+  box-shadow: 0 0 10px rgba(0, 255, 170, 0.35);
+}
+
+.nozaki-timer-reset:active {
+  transform: translateY(1px);
+}
+
+/* ボイスボタン */
+.nozaki-timer-voice {
+  border: 1px solid rgba(0, 255, 170, 0.4);
+  background: rgba(0, 12, 20, 0.9);
+  color: var(--nozaki-dim);
+  padding: 2px 6px;
+  font-family: 'Chakra Petch', 'Share Tech Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.nozaki-timer-voice[data-state="on"] {
+  color: var(--nozaki-text);
+  border-color: rgba(0, 255, 170, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 170, 0.2);
+}
+
+.nozaki-timer-voice[data-state="off"] {
+  color: rgba(255, 170, 120, 0.7);
+  border-color: rgba(255, 170, 120, 0.6);
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  #nozaki-timer-panel {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+  
+  #nozaki-timer-value {
+    font-size: 18px;
+    min-width: 48px;
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "野崎タイマー",
+  "version": "1.0.0",
+  "description": "野崎タイマーカウントダウン機能",
+  "permissions": [
+    "storage",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "http://*/kcsapi/*",
+    "https://*/kcsapi/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://play.games.dmm.com/game/kancolle",
+        "https://play.games.dmm.com/game/kancolle/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ]
+}
