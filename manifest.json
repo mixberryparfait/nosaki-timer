@@ -5,6 +5,7 @@
   "description": "野崎タイマーカウントダウン機能",
   "permissions": [
     "storage",
+    "windows",
     "webRequest"
   ],
   "host_permissions": [
@@ -14,15 +15,7 @@
   "background": {
     "service_worker": "background.js"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://play.games.dmm.com/game/kancolle",
-        "https://play.games.dmm.com/game/kancolle/*"
-      ],
-      "js": ["content.js"],
-      "css": ["styles.css"],
-      "run_at": "document_end"
-    }
-  ]
+  "action": {
+    "default_title": "野崎タイマー"
+  }
 }

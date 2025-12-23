@@ -3,24 +3,18 @@ let timerState = {
   isRunning: false,
   startTime: null,
   duration: 15 * 60 * 1000, // 15分（ミリ秒）
-  intervalId: null,
   voiceEnabled: true
 };
+
+const WINDOW_URL = chrome.runtime.getURL('window.html');
 
 // タイマー開始/リセット
 function resetTimer() {
   timerState.isRunning = true;
   timerState.startTime = Date.now();
 
-  // Content scriptに通知
+  // UIに通知
   notifyContentScript();
-
-  // 1秒ごとに更新（既に動いていれば維持）
-  if (!timerState.intervalId) {
-    timerState.intervalId = setInterval(() => {
-      notifyContentScript();
-    }, 1000);
-  }
 
   console.log('タイマー開始/リセット: 15分');
 }
@@ -57,15 +51,14 @@ function notifyContentScript() {
   const message = {
     type: 'TIMER_UPDATE',
     isRunning: timerState.isRunning,
-    remainingSeconds: getRemainingSeconds()
+    startTime: timerState.startTime,
+    duration: timerState.duration
   };
-  
-  chrome.tabs.query({url: 'https://play.games.dmm.com/game/kancolle'}, (tabs) => {
-    tabs.forEach(tab => {
-      chrome.tabs.sendMessage(tab.id, message).catch(() => {
-        // エラーは無視（タブが読み込まれていない場合など）
-      });
-    });
+
+  chrome.runtime.sendMessage(message, () => {
+    if (chrome.runtime.lastError) {
+      // 受信側がいない場合は無視
+    }
   });
 }
 
@@ -75,14 +68,9 @@ function speakText(text) {
     return;
   }
 
-  chrome.tabs.query({url: 'https://play.games.dmm.com/game/kancolle'}, (tabs) => {
-    if (tabs.length > 0) {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        type: 'SPEAK',
-        text
-      }).catch(() => {
-        console.log('音声読み上げ失敗');
-      });
+  chrome.runtime.sendMessage({ type: 'SPEAK', text }, () => {
+    if (chrome.runtime.lastError) {
+      // 受信側がいない場合は無視
     }
   });
 
@@ -129,6 +117,60 @@ chrome.webRequest.onCompleted.addListener(
   { urls: ["http://*/kcsapi/*", "https://*/kcsapi/*"] }
 );
 
+function openOrFocusWindow() {
+  chrome.storage.local.get(['nozakiWindowId'], (result) => {
+    const windowId = result.nozakiWindowId;
+    if (windowId) {
+      chrome.windows.get(windowId, (win) => {
+        if (chrome.runtime.lastError || !win) {
+          createWindow();
+          return;
+        }
+        chrome.windows.update(windowId, { focused: true });
+      });
+      return;
+    }
+
+    createWindow();
+  });
+}
+
+function createWindow() {
+  chrome.windows.create(
+    {
+      url: WINDOW_URL,
+      type: 'popup',
+      width: 320,
+      height: 120
+    },
+    (win) => {
+      if (win && typeof win.id === 'number') {
+        chrome.storage.local.set({ nozakiWindowId: win.id });
+      }
+    }
+  );
+}
+
+chrome.windows.onRemoved.addListener((windowId) => {
+  chrome.storage.local.get(['nozakiWindowId'], (result) => {
+    if (result.nozakiWindowId === windowId) {
+      chrome.storage.local.remove(['nozakiWindowId']);
+    }
+  });
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  openOrFocusWindow();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  openOrFocusWindow();
+});
+
+chrome.action.onClicked.addListener(() => {
+  openOrFocusWindow();
+});
+
 // Content scriptからのメッセージ処理
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'GET_TIMER_STATE') {
@@ -140,6 +182,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({
       isRunning: timerState.isRunning,
       remainingSeconds: getRemainingSeconds(),
+      startTime: timerState.startTime,
+      duration: timerState.duration,
       voiceEnabled: timerState.voiceEnabled
     });
     return;
@@ -148,6 +192,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'RESET_TIMER') {
     console.log('RESET_TIMER request');
     resetTimer();
+    sendResponse({
+      isRunning: timerState.isRunning,
+      startTime: timerState.startTime,
+      duration: timerState.duration,
+      voiceEnabled: timerState.voiceEnabled
+    });
     return;
   }
 
