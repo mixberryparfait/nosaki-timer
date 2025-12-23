@@ -7,11 +7,51 @@ let timerState = {
 };
 
 const WINDOW_URL = chrome.runtime.getURL('window.html');
+let stateLoaded = false;
+
+function loadState(callback) {
+  if (stateLoaded) {
+    callback();
+    return;
+  }
+
+  chrome.storage.local.get(
+    ['nozakiIsRunning', 'nozakiStartTime', 'nozakiDuration', 'nozakiVoiceEnabled'],
+    (result) => {
+      timerState.isRunning = !!result.nozakiIsRunning;
+      timerState.startTime =
+        typeof result.nozakiStartTime === 'number' ? result.nozakiStartTime : null;
+      timerState.duration =
+        typeof result.nozakiDuration === 'number'
+          ? result.nozakiDuration
+          : 15 * 60 * 1000;
+      timerState.voiceEnabled =
+        typeof result.nozakiVoiceEnabled === 'boolean' ? result.nozakiVoiceEnabled : true;
+
+      if (!timerState.startTime) {
+        timerState.isRunning = false;
+      }
+
+      stateLoaded = true;
+      callback();
+    }
+  );
+}
+
+function saveState() {
+  chrome.storage.local.set({
+    nozakiIsRunning: timerState.isRunning,
+    nozakiStartTime: timerState.startTime,
+    nozakiDuration: timerState.duration,
+    nozakiVoiceEnabled: timerState.voiceEnabled
+  });
+}
 
 // タイマー開始/リセット
 function resetTimer() {
   timerState.isRunning = true;
   timerState.startTime = Date.now();
+  saveState();
 
   // UIに通知
   notifyContentScript();
@@ -87,32 +127,34 @@ chrome.webRequest.onCompleted.addListener(
   function(details) {
     // kcsapiへのリクエストのみ処理
     if (!details.url.includes('kcsapi')) return;
-    
-    try {
-      const endpoint = details.url.split('kcsapi/')[1];
-      if (!endpoint) return;
-      
-      console.log('API呼び出し:', endpoint);
-      
-      const endpointPath = endpoint.split('?')[0];
-      if (endpointPath !== 'port' && !endpointPath.endsWith('/port')) {
-        return;
-      }
 
-      // 15分超過ならリセット、未満なら残り分数を読み上げ
-      if (!timerState.isRunning || !timerState.startTime) {
-        return;
-      }
+    loadState(() => {
+      try {
+        const endpoint = details.url.split('kcsapi/')[1];
+        if (!endpoint) return;
+        
+        console.log('API呼び出し:', endpoint);
+        
+        const endpointPath = endpoint.split('?')[0];
+        if (endpointPath !== 'port' && !endpointPath.endsWith('/port')) {
+          return;
+        }
 
-      if (hasExceededDuration()) {
-        speakText('リセット');
-        resetTimer();
-      } else {
-        speakRemainingTime();
+        // 15分超過ならリセット、未満なら残り分数を読み上げ
+        if (!timerState.isRunning || !timerState.startTime) {
+          return;
+        }
+
+        if (hasExceededDuration()) {
+          speakText('リセット');
+          resetTimer();
+        } else {
+          speakRemainingTime();
+        }
+      } catch (error) {
+        console.error('エラー:', error);
       }
-    } catch (error) {
-      console.error('エラー:', error);
-    }
+    });
   },
   { urls: ["http://*/kcsapi/*", "https://*/kcsapi/*"] }
 );
@@ -174,36 +216,41 @@ chrome.action.onClicked.addListener(() => {
 // Content scriptからのメッセージ処理
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'GET_TIMER_STATE') {
-    console.log('GET_TIMER_STATE request', {
-      isRunning: timerState.isRunning,
-      remainingSeconds: getRemainingSeconds(),
-      voiceEnabled: timerState.voiceEnabled
+    loadState(() => {
+      console.log('GET_TIMER_STATE request', {
+        isRunning: timerState.isRunning,
+        remainingSeconds: getRemainingSeconds(),
+        voiceEnabled: timerState.voiceEnabled
+      });
+      sendResponse({
+        isRunning: timerState.isRunning,
+        remainingSeconds: getRemainingSeconds(),
+        startTime: timerState.startTime,
+        duration: timerState.duration,
+        voiceEnabled: timerState.voiceEnabled
+      });
     });
-    sendResponse({
-      isRunning: timerState.isRunning,
-      remainingSeconds: getRemainingSeconds(),
-      startTime: timerState.startTime,
-      duration: timerState.duration,
-      voiceEnabled: timerState.voiceEnabled
-    });
-    return;
+    return true;
   }
 
   if (message.type === 'RESET_TIMER') {
     console.log('RESET_TIMER request');
-    resetTimer();
-    sendResponse({
-      isRunning: timerState.isRunning,
-      startTime: timerState.startTime,
-      duration: timerState.duration,
-      voiceEnabled: timerState.voiceEnabled
+    loadState(() => {
+      resetTimer();
+      sendResponse({
+        isRunning: timerState.isRunning,
+        startTime: timerState.startTime,
+        duration: timerState.duration,
+        voiceEnabled: timerState.voiceEnabled
+      });
     });
-    return;
+    return true;
   }
 
   if (message.type === 'SET_VOICE_ENABLED') {
     console.log('SET_VOICE_ENABLED request', message.enabled);
     timerState.voiceEnabled = !!message.enabled;
+    saveState();
   }
 });
 
